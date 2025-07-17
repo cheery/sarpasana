@@ -1,6 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <yoga/Yoga.h>
+#include <sstream>
+#include <vector>
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -16,6 +18,50 @@ void dirtied_func_callback(YGNodeConstRef node);
 #define MeasureFunc std::function<py::tuple(Node&, float, YGMeasureMode, float, YGMeasureMode)>
 #define BaselineFunc std::function<float(Node&, float, float)>
 #define DirtiedFunc std::function<void(Node&)>
+
+static std::string Undefined("undefined");
+static std::string Auto("auto");
+static std::string MaxContent("max_content");
+static std::string MinContent("min_content");
+static std::string FitContent("fit_content");
+static std::string Stretch("stretch");
+
+class Percent {
+public:
+    float value;
+    Percent(float _value) : value(_value) { }
+
+    std::string Repr() {
+        std::stringstream s;
+        s << value << "*pc";
+        return s.str();
+    }
+
+    Percent Mul(float other) {
+        return Percent(other * value);
+    }
+};
+
+py::object from_yg(YGValue yg) {
+    switch (yg.unit) {
+        case YGUnit::YGUnitUndefined:
+            return py::cast(Undefined);
+        case YGUnit::YGUnitPoint:
+            return py::float_(yg.value);
+        case YGUnit::YGUnitPercent:
+            return py::cast(Percent(yg.value));
+        case YGUnit::YGUnitAuto:
+            return py::cast(Auto);
+        case YGUnit::YGUnitMaxContent:
+            return py::cast(MaxContent);
+        case YGUnit::YGUnitFitContent:
+            return py::cast(FitContent);
+        case YGUnit::YGUnitStretch:
+            return py::cast(&Stretch);
+        default:
+            throw std::runtime_error(std::string("Could not convert yg value to python"));
+    }
+}
 
 class Config;
 
@@ -335,6 +381,145 @@ Config* Node::GetConfig() {
     return Config::Cast(YGNodeGetConfig(ref));
 }
 
+class Edges {
+public:
+    std::vector<YGEdge> edges;
+    py::list values;
+    void Add(YGEdge edge, py::handle value) {
+        edges.push_back(edge);
+        values.append(value);
+    }
+    Edges(py::args args, py::kwargs kwargs) {
+        if (kwargs.size() > 0 && args.size() > 0) throw py::value_error(std::string("edges expects either keywords or positional arguments, not both.")); 
+        switch(args.size()) {
+            case 0: {
+                for (auto item : kwargs) {
+                    std::string key = item.first.cast<std::string>();
+                    if (key == "all") Add(YGEdge::YGEdgeAll, item.second);
+                    else if (key == "vertical") Add(YGEdge::YGEdgeVertical, item.second);
+                    else if (key == "horizontal") Add(YGEdge::YGEdgeHorizontal, item.second);
+                    else if (key == "top") Add(YGEdge::YGEdgeTop, item.second);
+                    else if (key == "right") Add(YGEdge::YGEdgeRight, item.second);
+                    else if (key == "bottom") Add(YGEdge::YGEdgeBottom, item.second);
+                    else if (key == "left") Add(YGEdge::YGEdgeLeft, item.second);
+                    else if (key == "start") Add(YGEdge::YGEdgeStart, item.second);
+                    else if (key == "end") Add(YGEdge::YGEdgeEnd, item.second);
+                    else throw py::value_error(std::string("edges keyword argument must signify a key, all|vertical|horizontal|top|right|bottom|left|start|end"));
+                }
+                break;
+            }
+            case 1:
+                Add(YGEdge::YGEdgeAll, args[0]);
+                break;
+            case 2:
+                Add(YGEdge::YGEdgeVertical, args[0]);
+                Add(YGEdge::YGEdgeHorizontal, args[1]);
+                break;
+            case 3:
+                Add(YGEdge::YGEdgeTop, args[0]);
+                Add(YGEdge::YGEdgeHorizontal, args[1]);
+                Add(YGEdge::YGEdgeBottom, args[2]);
+                break;
+            case 4:
+                Add(YGEdge::YGEdgeTop, args[0]);
+                Add(YGEdge::YGEdgeRight, args[1]);
+                Add(YGEdge::YGEdgeBottom, args[2]);
+                Add(YGEdge::YGEdgeLeft, args[3]);
+                break;
+            default: throw py::value_error(std::string("edges understands at most 4 positional arguments"));
+        }
+    }
+};
+
+class EdgeProxy {
+public:
+    Node* node;
+    explicit EdgeProxy(Node* _node) : node(_node) { }
+    virtual YGValue Edge(YGEdge edge) { return {YGUndefined, YGUnit::YGUnitUndefined}; }
+    py::object Left() { return from_yg(Edge(YGEdge::YGEdgeLeft)); }
+    py::object Top() { return from_yg(Edge(YGEdge::YGEdgeTop)); }
+    py::object Right() { return from_yg(Edge(YGEdge::YGEdgeRight)); }
+    py::object Bottom() { return from_yg(Edge(YGEdge::YGEdgeBottom)); }
+    py::object Start() { return from_yg(Edge(YGEdge::YGEdgeStart)); }
+    py::object End() { return from_yg(Edge(YGEdge::YGEdgeEnd)); }
+    py::object Horizontal() { return from_yg(Edge(YGEdge::YGEdgeHorizontal)); }
+    py::object Vertical() { return from_yg(Edge(YGEdge::YGEdgeVertical)); }
+    py::object All() { return from_yg(Edge(YGEdge::YGEdgeAll)); }
+};
+
+class MarginEdgeProxy : public EdgeProxy {
+    using EdgeProxy::EdgeProxy;
+    YGValue Edge(YGEdge edge) { return YGNodeStyleGetMargin(this->node->ref, edge); }
+};
+
+class BorderProxy {
+public:
+    Node* node;
+    BorderProxy(Node* _node) : node(_node) { }
+    float Edge(YGEdge edge) { return YGNodeStyleGetBorder(node->ref, edge); }
+    float Left() { return Edge(YGEdge::YGEdgeLeft); }
+    float Top() { return Edge(YGEdge::YGEdgeTop); }
+    float Right() { return Edge(YGEdge::YGEdgeRight); }
+    float Bottom() { return Edge(YGEdge::YGEdgeBottom); }
+    float Start() { return Edge(YGEdge::YGEdgeStart); }
+    float End() { return Edge(YGEdge::YGEdgeEnd); }
+    float Horizontal() { return Edge(YGEdge::YGEdgeHorizontal); }
+    float Vertical() { return Edge(YGEdge::YGEdgeVertical); }
+    float All() { return Edge(YGEdge::YGEdgeAll); }
+};
+
+class PositionEdgeProxy : public EdgeProxy {
+    using EdgeProxy::EdgeProxy;
+    YGValue Edge(YGEdge edge) { return YGNodeStyleGetPosition(this->node->ref, edge); }
+};
+
+class PaddingEdgeProxy : public EdgeProxy {
+    using EdgeProxy::EdgeProxy;
+    YGValue Edge(YGEdge edge) { return YGNodeStyleGetPadding(this->node->ref, edge); }
+};
+
+class Gutters {
+public:
+    std::vector<YGGutter> gutters;
+    py::list values;
+    void Add(YGGutter gutter, py::handle value) {
+        gutters.push_back(gutter);
+        values.append(value);
+    }
+    Gutters(py::args args, py::kwargs kwargs) {
+        if (kwargs.size() > 0 && args.size() > 0) throw py::value_error(std::string("gutters expects either keywords or positional arguments, not both.")); 
+        switch(args.size()) {
+            case 0: {
+                for (auto item : kwargs) {
+                    std::string key = item.first.cast<std::string>();
+                    if (key == "all") Add(YGGutter::YGGutterAll, item.second);
+                    else if (key == "column") Add(YGGutter::YGGutterColumn, item.second);
+                    else if (key == "row") Add(YGGutter::YGGutterRow, item.second);
+                    else throw py::value_error(std::string("gutters keyword argument must signify a key, all|row|column"));
+                }
+                break;
+            }
+            case 1:
+                Add(YGGutter::YGGutterAll, args[0]);
+                break;
+            case 2:
+                Add(YGGutter::YGGutterColumn, args[0]);
+                Add(YGGutter::YGGutterRow, args[1]);
+                break;
+            default: throw py::value_error(std::string("gutters understands at most 2 positional arguments"));
+        }
+    }
+};
+
+class GutterProxy {
+public:
+    Node* node;
+    GutterProxy(Node* _node) : node(_node) { }
+    py::object Column() { return from_yg(YGNodeStyleGetGap(node->ref, YGGutter::YGGutterColumn)); }
+    py::object Row() { return from_yg(YGNodeStyleGetGap(node->ref, YGGutter::YGGutterRow)); }
+    py::object All() { return from_yg(YGNodeStyleGetGap(node->ref, YGGutter::YGGutterAll)); }
+};
+
 PYBIND11_MODULE(sarpasana, m) {
     m.doc() = R"pbdoc(
         sarpasana
@@ -372,17 +557,6 @@ PYBIND11_MODULE(sarpasana, m) {
         .value("No", YGDisplay::YGDisplayNone)
         .value("Contents", YGDisplay::YGDisplayContents);
 
-    py::enum_<YGEdge>(m, "Edge")
-        .value("Left", YGEdge::YGEdgeLeft)
-        .value("Top", YGEdge::YGEdgeTop)
-        .value("Right", YGEdge::YGEdgeRight)
-        .value("Bottom", YGEdge::YGEdgeBottom)
-        .value("Start", YGEdge::YGEdgeStart)
-        .value("End", YGEdge::YGEdgeEnd)
-        .value("Horizontal", YGEdge::YGEdgeHorizontal)
-        .value("Vertical", YGEdge::YGEdgeVertical)
-        .value("All", YGEdge::YGEdgeAll);
-
     m.attr("ErrataStretchFlexBasis") = (unsigned long)YGErrataStretchFlexBasis;
     m.attr("ErrataAbsolutePositionWithoutInsetsExludesPadding") = (unsigned long)YGErrataAbsolutePositionWithoutInsetsExcludesPadding;
     m.attr("ErrataAbsolutePositionPercentAgainstInnerSize") = (unsigned long)YGErrataAbsolutePercentAgainstInnerSize;
@@ -397,11 +571,6 @@ PYBIND11_MODULE(sarpasana, m) {
         .value("ColumnReverse", YGFlexDirection::YGFlexDirectionColumnReverse)
         .value("Row", YGFlexDirection::YGFlexDirectionRow)
         .value("RowReverse", YGFlexDirection::YGFlexDirectionRowReverse);
-
-    py::enum_<YGGutter>(m, "Gutter")
-        .value("Column", YGGutter::YGGutterColumn)
-        .value("Row", YGGutter::YGGutterRow)
-        .value("All", YGGutter::YGGutterAll);
 
     py::enum_<YGJustify>(m, "Justify")
         .value("FlexStart", YGJustify::YGJustifyFlexStart)
@@ -438,21 +607,10 @@ PYBIND11_MODULE(sarpasana, m) {
         .value("Relative", YGPositionType::YGPositionTypeRelative)
         .value("Absolute", YGPositionType::YGPositionTypeAbsolute);
 
-    py::enum_<YGUnit>(m, "Unit")
-        .value("Undefined", YGUnit::YGUnitUndefined)
-        .value("Point", YGUnit::YGUnitPoint)
-        .value("Percent", YGUnit::YGUnitPercent)
-        .value("Auto", YGUnit::YGUnitAuto)
-        .value("MaxContent", YGUnit::YGUnitMaxContent)
-        .value("FitContent", YGUnit::YGUnitFitContent)
-        .value("Stretch", YGUnit::YGUnitStretch);
-
     py::enum_<YGWrap>(m, "Wrap")
         .value("No", YGWrap::YGWrapNoWrap)
         .value("Yes", YGWrap::YGWrapWrap)
         .value("Reverse", YGWrap::YGWrapWrapReverse);
-
-    m.attr("Undefined") = YGUndefined;
 
     py::class_<Config>(m, "Config")
         .def(py::init<>())
@@ -539,134 +697,217 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_flex_shrink",
             [](Node &self) { return YGNodeStyleGetFlexShrink(self.ref); },
             [](Node &self, float param) { YGNodeStyleSetFlexShrink(self.ref, param); })
-        .def("style_set_flex_basis",
-            [](Node &self, float param) { YGNodeStyleSetFlexBasis(self.ref, param); })
-        .def("style_set_flex_basis_percent",
-            [](Node &self, float param) { YGNodeStyleSetFlexBasisPercent(self.ref, param); })
-        .def("style_set_flex_basis_auto",
-            [](Node &self) { YGNodeStyleSetFlexBasisAuto(self.ref); })
-        .def("style_set_flex_basis_max_content",
-            [](Node &self) { YGNodeStyleSetFlexBasisMaxContent(self.ref); })
-        .def("style_set_flex_basis_fit_content",
-            [](Node &self) { YGNodeStyleSetFlexBasisFitContent(self.ref); })
-        .def("style_set_flex_basis_stretch",
-            [](Node &self) { YGNodeStyleSetFlexBasisStretch(self.ref); })
-        .def_property_readonly("style_flex_basis",
-            [](Node &self) { return YGNodeStyleGetFlexBasis(self.ref); })
-        .def("style_set_position",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetPosition(self.ref, edge, param); })
-        .def("style_set_position_percent",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetPositionPercent(self.ref, edge, param); })
-        .def("style_get_position",
-            [](Node &self, YGEdge edge) { return YGNodeStyleGetPosition(self.ref, edge); })
-        .def("style_set_position_auto",
-            [](Node &self, YGEdge edge) { YGNodeStyleSetPositionAuto(self.ref, edge); })
-        .def("style_set_margin",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetMargin(self.ref, edge, param); })
-        .def("style_set_margin_percent",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetMarginPercent(self.ref, edge, param); })
-        .def("style_get_margin",
-            [](Node &self, YGEdge edge) { return YGNodeStyleGetMargin(self.ref, edge); })
-        .def("style_set_margin_auto",
-            [](Node &self, YGEdge edge) { YGNodeStyleSetMarginAuto(self.ref, edge); })
-        .def("style_set_padding",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetPadding(self.ref, edge, param); })
-        .def("style_set_padding_percent",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetPaddingPercent(self.ref, edge, param); })
-        .def("style_get_padding",
-            [](Node &self, YGEdge edge) { return YGNodeStyleGetPadding(self.ref, edge); })
-        .def("style_set_border",
-            [](Node &self, YGEdge edge, float param) { YGNodeStyleSetBorder(self.ref, edge, param); })
-        .def("style_get_border",
-            [](Node &self, YGEdge edge) { return YGNodeStyleGetBorder(self.ref, edge); })
-        .def("style_set_gap",
-            [](Node &self, YGGutter gutter, float param) { YGNodeStyleSetGap(self.ref, gutter, param); })
-        .def("style_set_gap_percent",
-            [](Node &self, YGGutter gutter, float param) { YGNodeStyleSetGapPercent(self.ref, gutter, param); })
-        .def("style_get_gap",
-            [](Node &self, YGGutter gutter) { return YGNodeStyleGetGap(self.ref, gutter); })
+        .def_property("style_flex_basis",
+            [](Node &self) { return from_yg(YGNodeStyleGetFlexBasis(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetFlexBasis(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "auto") { YGNodeStyleSetFlexBasisAuto(self.ref); }
+                    else if (gv == "max_content") { YGNodeStyleSetFlexBasisMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetFlexBasisFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetFlexBasisStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_flex_basis should be one of float|pc|auto|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetFlexBasisPercent(self.ref, gv->value);
+                }
+            })
+        .def_property("style_height",
+            [](Node &self) { return from_yg(YGNodeStyleGetHeight(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetHeight(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "auto") { YGNodeStyleSetHeightAuto(self.ref); }
+                    else if (gv == "max_content") { YGNodeStyleSetHeightMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetHeightFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetHeightStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_height should be one of float|pc|auto|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetHeightPercent(self.ref, gv->value);
+                }
+            })
+        .def_property("style_min_height",
+            [](Node &self) { return from_yg(YGNodeStyleGetMinHeight(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetMinHeight(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "max_content") { YGNodeStyleSetMinHeightMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetMinHeightFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetMinHeightStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_min_height should be one of float|pc|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetMinHeightPercent(self.ref, gv->value);
+                }
+            })
+        .def_property("style_width",
+            [](Node &self) { return from_yg(YGNodeStyleGetWidth(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetWidth(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "auto") { YGNodeStyleSetWidthAuto(self.ref); }
+                    else if (gv == "max_content") { YGNodeStyleSetWidthMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetWidthFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetWidthStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_width should be one of float|pc|auto|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetWidthPercent(self.ref, gv->value);
+                }
+            })
+        .def_property("style_min_width",
+            [](Node &self) { return from_yg(YGNodeStyleGetMinWidth(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetMinWidth(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "max_content") { YGNodeStyleSetMinWidthMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetMinWidthFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetMinWidthStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_min_width should be one of float|pc|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetMinWidthPercent(self.ref, gv->value);
+                }
+            })
+        .def_property("style_max_width",
+            [](Node &self) { return from_yg(YGNodeStyleGetMaxHeight(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetMaxWidth(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "max_content") { YGNodeStyleSetMaxWidthMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetMaxWidthFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetMaxWidthStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_max_width should be one of float|pc|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetMaxWidthPercent(self.ref, gv->value);
+                }
+            })
+        .def_property("style_max_height",
+            [](Node &self) { return from_yg(YGNodeStyleGetMaxWidth(self.ref)); },
+            [](Node &self, py::object param) {
+                if (py::isinstance<py::float_>(param)) {
+                    float value = param.cast<float>();
+                    YGNodeStyleSetMaxHeight(self.ref, value);
+                } else if (py::isinstance<py::str>(param)) {
+                    std::string gv = param.cast<std::string>();
+                    if (gv == "max_content") { YGNodeStyleSetMaxHeightMaxContent(self.ref); }
+                    else if (gv == "fit_content") { YGNodeStyleSetMaxHeightFitContent(self.ref); }
+                    else if (gv == "stretch") { YGNodeStyleSetMaxHeightStretch(self.ref); }
+                    else { throw std::runtime_error(std::string("style_max_heigth should be one of float|pc|max_content|fit_content|stretch")); }
+                } else {
+                    Percent* gv = param.cast<Percent*>();
+                    YGNodeStyleSetMaxHeightPercent(self.ref, gv->value);
+                }
+            })
         .def_property("style_box_sizing",
             [](Node &self) { return YGNodeStyleGetBoxSizing(self.ref); },
             [](Node &self, YGBoxSizing param) { YGNodeStyleSetBoxSizing(self.ref, param); })
-        .def("style_set_width",
-            [](Node &self, float param) { YGNodeStyleSetWidth(self.ref, param); })
-        .def("style_set_width_percent",
-            [](Node &self, float param) { YGNodeStyleSetWidthPercent(self.ref, param); })
-        .def_property_readonly("style_width",
-            [](Node &self) { return YGNodeStyleGetWidth(self.ref); })
-        .def("style_set_width_auto",
-            [](Node &self) { YGNodeStyleSetWidthAuto(self.ref); })
-        .def("style_set_width_max_content",
-            [](Node &self) { YGNodeStyleSetWidthMaxContent(self.ref); })
-        .def("style_set_width_fit_content",
-            [](Node &self) { YGNodeStyleSetWidthFitContent(self.ref); })
-        .def("style_set_width_stretch",
-            [](Node &self) { YGNodeStyleSetWidthStretch(self.ref); })
-        .def("style_set_height",
-            [](Node &self, float param) { YGNodeStyleSetHeight(self.ref, param); })
-        .def("style_set_height_percent",
-            [](Node &self, float param) { YGNodeStyleSetHeightPercent(self.ref, param); })
-        .def_property_readonly("style_height",
-            [](Node &self) { return YGNodeStyleGetHeight(self.ref); })
-        .def("style_set_height_auto",
-            [](Node &self) { YGNodeStyleSetHeightAuto(self.ref); })
-        .def("style_set_height_max_content",
-            [](Node &self) { YGNodeStyleSetHeightMaxContent(self.ref); })
-        .def("style_set_height_fit_content",
-            [](Node &self) { YGNodeStyleSetHeightFitContent(self.ref); })
-        .def("style_set_height_stretch",
-            [](Node &self) { YGNodeStyleSetHeightStretch(self.ref); })
-        .def("style_set_min_height",
-            [](Node &self, float param) { YGNodeStyleSetMinHeight(self.ref, param); })
-        .def("style_set_min_height_percent",
-            [](Node &self, float param) { YGNodeStyleSetMinHeightPercent(self.ref, param); })
-        .def_property_readonly("style_min_height",
-            [](Node &self) { return YGNodeStyleGetMinHeight(self.ref); })
-        .def("style_set_min_height_max_content",
-            [](Node &self) { YGNodeStyleSetMinHeightMaxContent(self.ref); })
-        .def("style_set_min_height_fit_content",
-            [](Node &self) { YGNodeStyleSetMinHeightFitContent(self.ref); })
-        .def("style_set_min_height_stretch",
-            [](Node &self) { YGNodeStyleSetMinHeightStretch(self.ref); })
-        .def("style_set_min_width",
-            [](Node &self, float param) { YGNodeStyleSetMinWidth(self.ref, param); })
-        .def("style_set_min_width_percent",
-            [](Node &self, float param) { YGNodeStyleSetMinWidthPercent(self.ref, param); })
-        .def_property_readonly("style_min_width",
-            [](Node &self) { return YGNodeStyleGetMinWidth(self.ref); })
-        .def("style_set_min_width_max_content",
-            [](Node &self) { YGNodeStyleSetMinWidthMaxContent(self.ref); })
-        .def("style_set_min_width_fit_content",
-            [](Node &self) { YGNodeStyleSetMinWidthFitContent(self.ref); })
-        .def("style_set_min_width_stretch",
-            [](Node &self) { YGNodeStyleSetMinWidthStretch(self.ref); })
-        .def("style_set_max_width",
-            [](Node &self, float param) { YGNodeStyleSetMaxWidth(self.ref, param); })
-        .def("style_set_max_width_percent",
-            [](Node &self, float param) { YGNodeStyleSetMaxWidthPercent(self.ref, param); })
-        .def_property_readonly("style_max_width",
-            [](Node &self) { return YGNodeStyleGetMaxWidth(self.ref); })
-        .def("style_set_max_width_max_content",
-            [](Node &self) { YGNodeStyleSetMaxWidthMaxContent(self.ref); })
-        .def("style_set_max_width_fit_content",
-            [](Node &self) { YGNodeStyleSetMaxWidthFitContent(self.ref); })
-        .def("style_set_max_width_stretch",
-            [](Node &self) { YGNodeStyleSetMaxWidthStretch(self.ref); })
-        .def("style_set_max_height",
-            [](Node &self, float param) { YGNodeStyleSetMaxHeight(self.ref, param); })
-        .def("style_set_max_height_percent",
-            [](Node &self, float param) { YGNodeStyleSetMaxHeightPercent(self.ref, param); })
-        .def_property_readonly("style_max_height",
-            [](Node &self) { return YGNodeStyleGetMaxHeight(self.ref); })
-        .def("style_set_max_height_max_content",
-            [](Node &self) { YGNodeStyleSetMaxHeightMaxContent(self.ref); })
-        .def("style_set_max_height_fit_content",
-            [](Node &self) { YGNodeStyleSetMaxHeightFitContent(self.ref); })
-        .def("style_set_max_height_stretch",
-            [](Node &self) { YGNodeStyleSetMaxHeightStretch(self.ref); })
         .def_property("style_aspect_ratio",
             [](Node &self) { return YGNodeStyleGetAspectRatio(self.ref); },
-            [](Node &self, float param) { YGNodeStyleSetAspectRatio(self.ref, param); });
+            [](Node &self, float param) { YGNodeStyleSetAspectRatio(self.ref, param); })
+        .def_property("style_margin",
+            [](Node &self) { return MarginEdgeProxy(&self); },
+            [](Node &self, Edges &edges) {
+                size_t sz = edges.values.size();
+                for (size_t i = 0; i < sz; ++i) {
+                    YGEdge     edge  = edges.edges[i];
+                    py::handle param = edges.values[i];
+                    if (py::isinstance<py::float_>(param)) {
+                        float value = param.cast<float>();
+                        YGNodeStyleSetMargin(self.ref, edge, value);
+                    } else if (py::isinstance<py::str>(param)) {
+                        std::string gv = param.cast<std::string>();
+                        if (gv == "auto") { YGNodeStyleSetMarginAuto(self.ref, edge); }
+                        else { throw std::runtime_error(std::string("style_margin should be one of float|pc|auto")); }
+                    } else {
+                        Percent* gv = param.cast<Percent*>();
+                        YGNodeStyleSetMarginPercent(self.ref, edge, gv->value);
+                    }
+                }
+            })
+        .def_property("style_border",
+            [](Node &self) { return BorderProxy(&self); },
+            [](Node &self, Edges &edges) {
+                size_t sz = edges.values.size();
+                for (size_t i = 0; i < sz; ++i) {
+                    YGEdge     edge  = edges.edges[i];
+                    py::handle param = edges.values[i];
+                    float value = param.cast<float>();
+                    YGNodeStyleSetBorder(self.ref, edge, value);
+                }
+            })
+        .def_property("style_position",
+            [](Node &self) { return PositionEdgeProxy(&self); },
+            [](Node &self, Edges &edges) {
+                size_t sz = edges.values.size();
+                for (size_t i = 0; i < sz; ++i) {
+                    YGEdge     edge  = edges.edges[i];
+                    py::handle param = edges.values[i];
+                    if (py::isinstance<py::float_>(param)) {
+                        float value = param.cast<float>();
+                        YGNodeStyleSetPosition(self.ref, edge, value);
+                    } else if (py::isinstance<py::str>(param)) {
+                        std::string gv = param.cast<std::string>();
+                        if (gv == "auto") { YGNodeStyleSetPositionAuto(self.ref, edge); }
+                        else { throw std::runtime_error(std::string("style_position should be one of float|pc|auto")); }
+                    } else {
+                        Percent* gv = param.cast<Percent*>();
+                        YGNodeStyleSetPositionPercent(self.ref, edge, gv->value);
+                    }
+                }
+            })
+        .def_property("style_padding",
+            [](Node &self) { return PaddingEdgeProxy(&self); },
+            [](Node &self, Edges &edges) {
+                size_t sz = edges.values.size();
+                for (size_t i = 0; i < sz; ++i) {
+                    YGEdge     edge  = edges.edges[i];
+                    py::handle param = edges.values[i];
+                    if (py::isinstance<py::float_>(param)) {
+                        float value = param.cast<float>();
+                        YGNodeStyleSetPadding(self.ref, edge, value);
+                    } else {
+                        Percent* gv = param.cast<Percent*>();
+                        YGNodeStyleSetPaddingPercent(self.ref, edge, gv->value);
+                    }
+                }
+            })
+        .def_property("style_gap",
+            [](Node &self) { return GutterProxy(&self); },
+            [](Node &self, Gutters &gutters) {
+                size_t sz = gutters.values.size();
+                for (size_t i = 0; i < sz; ++i) {
+                    YGGutter   gutter = gutters.gutters[i];
+                    py::handle param  = gutters.values[i];
+                    if (py::isinstance<py::float_>(param)) {
+                        float value = param.cast<float>();
+                        YGNodeStyleSetGap(self.ref, gutter, value);
+                    } else {
+                        Percent* gv = param.cast<Percent*>();
+                        YGNodeStyleSetGapPercent(self.ref, gutter, gv->value);
+                    }
+                }
+            });
 
     m.def("round_value_to_pixel_grid", &YGRoundValueToPixelGrid,
           "value"_a,
@@ -674,14 +915,51 @@ PYBIND11_MODULE(sarpasana, m) {
           "forceCeil"_a,
           "forceFloow"_a);
 
-    py::class_<YGValue>(m, "Value")
-        .def(py::init<float, YGUnit>())
-        .def_readwrite("value", &YGValue::value)
-        .def_readwrite("unit", &YGValue::unit);
+    py::class_<Percent>(m, "Percent")
+        .def(py::init<float>())
+        .def_readonly("value", &Percent::value)
+        .def("__repr__", &Percent::Repr)
+        .def("__mul__", &Percent::Mul)
+        .def("__rmul__", &Percent::Mul);
 
-    m.attr("ValueAuto") = YGValueAuto;
-    m.attr("ValueUndefined") = YGValueUndefined;
-    m.attr("ValueZero") = YGValueZero;
+    m.attr("pc") = Percent(1.0f);
+
+    py::class_<Edges>(m, "edges")
+        .def(py::init<py::args, py::kwargs>());
+
+    py::class_<Gutters>(m, "gutters")
+        .def(py::init<py::args, py::kwargs>());
+
+    py::class_<BorderProxy>(m, "BorderProxy")
+        .def_property_readonly("left", &BorderProxy::Left)
+        .def_property_readonly("top", &BorderProxy::Top)
+        .def_property_readonly("right", &BorderProxy::Right)
+        .def_property_readonly("bottom", &BorderProxy::Bottom)
+        .def_property_readonly("start", &BorderProxy::Start)
+        .def_property_readonly("end", &BorderProxy::End)
+        .def_property_readonly("horizontal", &BorderProxy::Horizontal)
+        .def_property_readonly("vertical", &BorderProxy::Vertical)
+        .def_property_readonly("all", &BorderProxy::All);
+
+    py::class_<EdgeProxy>(m, "EdgeProxy")
+        .def_property_readonly("left", &EdgeProxy::Left)
+        .def_property_readonly("top", &EdgeProxy::Top)
+        .def_property_readonly("right", &EdgeProxy::Right)
+        .def_property_readonly("bottom", &EdgeProxy::Bottom)
+        .def_property_readonly("start", &EdgeProxy::Start)
+        .def_property_readonly("end", &EdgeProxy::End)
+        .def_property_readonly("horizontal", &EdgeProxy::Horizontal)
+        .def_property_readonly("vertical", &EdgeProxy::Vertical)
+        .def_property_readonly("all", &EdgeProxy::All);
+
+    py::class_<MarginEdgeProxy, EdgeProxy>(m, "MarginEdgeProxy");
+    py::class_<PositionEdgeProxy, EdgeProxy>(m, "PositionEdgeProxy");
+    py::class_<PaddingEdgeProxy, EdgeProxy>(m, "PaddingEdgeProxy");
+
+    py::class_<GutterProxy>(m, "GutterProxy")
+        .def_property_readonly("column", &GutterProxy::Column)
+        .def_property_readonly("row", &GutterProxy::Row)
+        .def_property_readonly("all", &GutterProxy::All);
 
     m.def("float_is_undefined", &YGFloatIsUndefined, "value"_a);
 
