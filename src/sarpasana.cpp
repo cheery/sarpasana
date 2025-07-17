@@ -820,7 +820,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_flex_basis",
             [](Node &self) { return from_yg(YGNodeStyleGetFlexBasis(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetFlexBasis(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -838,7 +838,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_height",
             [](Node &self) { return from_yg(YGNodeStyleGetHeight(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetHeight(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -856,7 +856,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_min_height",
             [](Node &self) { return from_yg(YGNodeStyleGetMinHeight(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetMinHeight(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -873,7 +873,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_width",
             [](Node &self) { return from_yg(YGNodeStyleGetWidth(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetWidth(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -891,7 +891,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_min_width",
             [](Node &self) { return from_yg(YGNodeStyleGetMinWidth(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetMinWidth(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -908,7 +908,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_max_width",
             [](Node &self) { return from_yg(YGNodeStyleGetMaxHeight(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetMaxWidth(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -925,7 +925,7 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property("style_max_height",
             [](Node &self) { return from_yg(YGNodeStyleGetMaxWidth(self.ref)); },
             [](Node &self, py::object param) {
-                if (py::isinstance<py::float_>(param)) {
+                if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                     float value = param.cast<float>();
                     YGNodeStyleSetMaxHeight(self.ref, value);
                 } else if (py::isinstance<py::str>(param)) {
@@ -952,7 +952,7 @@ PYBIND11_MODULE(sarpasana, m) {
                 for (size_t i = 0; i < sz; ++i) {
                     YGEdge     edge  = edges.edges[i];
                     py::handle param = edges.values[i];
-                    if (py::isinstance<py::float_>(param)) {
+                    if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                         float value = param.cast<float>();
                         YGNodeStyleSetMargin(self.ref, edge, value);
                     } else if (py::isinstance<py::str>(param)) {
@@ -983,7 +983,7 @@ PYBIND11_MODULE(sarpasana, m) {
                 for (size_t i = 0; i < sz; ++i) {
                     YGEdge     edge  = edges.edges[i];
                     py::handle param = edges.values[i];
-                    if (py::isinstance<py::float_>(param)) {
+                    if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                         float value = param.cast<float>();
                         YGNodeStyleSetPosition(self.ref, edge, value);
                     } else if (py::isinstance<py::str>(param)) {
@@ -1003,7 +1003,7 @@ PYBIND11_MODULE(sarpasana, m) {
                 for (size_t i = 0; i < sz; ++i) {
                     YGEdge     edge  = edges.edges[i];
                     py::handle param = edges.values[i];
-                    if (py::isinstance<py::float_>(param)) {
+                    if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                         float value = param.cast<float>();
                         YGNodeStyleSetPadding(self.ref, edge, value);
                     } else {
@@ -1019,7 +1019,7 @@ PYBIND11_MODULE(sarpasana, m) {
                 for (size_t i = 0; i < sz; ++i) {
                     YGGutter   gutter = gutters.gutters[i];
                     py::handle param  = gutters.values[i];
-                    if (py::isinstance<py::float_>(param)) {
+                    if (py::isinstance<py::float_>(param) || py::isinstance<py::int_>(param)) {
                         float value = param.cast<float>();
                         YGNodeStyleSetGap(self.ref, gutter, value);
                     } else {
