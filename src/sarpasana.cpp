@@ -91,10 +91,6 @@ class Node {
             YGNodeReset(ref);
         }
 
-        void CalculateLayout(float availableWidth, float availableHeight, YGDirection ownerDirection) {
-            YGNodeCalculateLayout(ref, availableWidth, availableHeight, ownerDirection);
-        }
-
         void SetHasNewLayout(bool hasNewLayout) {
             YGNodeSetHasNewLayout(ref, hasNewLayout);
         }
@@ -520,6 +516,110 @@ public:
     py::object All() { return from_yg(YGNodeStyleGetGap(node->ref, YGGutter::YGGutterAll)); }
 };
 
+py::str from_yg_align(YGAlign a) {
+    switch(a) {
+        case YGAlign::YGAlignAuto: return py::str("auto");
+        case YGAlign::YGAlignFlexStart: return py::str("flex_start");
+        case YGAlign::YGAlignCenter: return py::str("center");
+        case YGAlign::YGAlignFlexEnd: return py::str("flex_end");
+        case YGAlign::YGAlignStretch: return py::str("stretch");
+        case YGAlign::YGAlignBaseline: return py::str("baseline");
+        case YGAlign::YGAlignSpaceBetween: return py::str("space_between");
+        case YGAlign::YGAlignSpaceAround: return py::str("space_around");
+        case YGAlign::YGAlignSpaceEvenly: return py::str("space_evenly");
+        default: throw std::runtime_error(std::string("unknown flavor of ygalign"));
+    }
+}
+
+YGAlign to_yg_align(std::string str) {
+    if (str == "auto") { return YGAlign::YGAlignAuto; }
+    if (str == "flex_start") { return YGAlign::YGAlignFlexStart; }
+    if (str == "center") { return YGAlign::YGAlignCenter; }
+    if (str == "flex_end") { return YGAlign::YGAlignFlexEnd; }
+    if (str == "stretch") { return YGAlign::YGAlignStretch; }
+    if (str == "baseline") { return YGAlign::YGAlignBaseline; }
+    if (str == "space_between") { return YGAlign::YGAlignSpaceBetween; }
+    if (str == "space_around") { return YGAlign::YGAlignSpaceAround; }
+    if (str == "space_evenly") { return YGAlign::YGAlignSpaceEvenly; }
+    throw py::value_error(std::string("ygalign accepts auto|flex_start|center|flex_end|stretch|baseline|space_between|space_around|space_evenly"));
+}
+
+py::str from_yg_box_sizing(YGBoxSizing a) {
+    switch(a) {
+        case YGBoxSizing::YGBoxSizingBorderBox: return py::str("border_box");
+        case YGBoxSizing::YGBoxSizingContentBox: return py::str("content_box");
+        default: throw std::runtime_error(std::string("unknown flavor of ygbox_sizing"));
+    }
+}
+
+YGBoxSizing to_yg_box_sizing(std::string str) {
+    if (str == "border_box") { return YGBoxSizing::YGBoxSizingBorderBox; }
+    if (str == "content_box") { return YGBoxSizing::YGBoxSizingContentBox; }
+    throw py::value_error(std::string("ygbox_sizing accepts border_box|content_box"));
+}
+
+py::str from_yg_dimension(YGDimension a) {
+    switch(a) {
+        case YGDimension::YGDimensionWidth: return py::str("width");
+        case YGDimension::YGDimensionHeight: return py::str("height");
+        default: throw std::runtime_error(std::string("unknown flavor of ygdimension"));
+    }
+}
+
+YGDimension to_yg_dimension(std::string str) {
+    if (str == "width") { return YGDimension::YGDimensionWidth; }
+    if (str == "height") { return YGDimension::YGDimensionHeight; }
+    throw py::value_error(std::string("ygdimension accepts width|height"));
+}
+
+py::str from_yg_direction(YGDirection a) {
+    switch(a) {
+        case YGDirection::YGDirectionInherit: return py::str("inherit");
+        case YGDirection::YGDirectionLTR: return py::str("ltr");
+        case YGDirection::YGDirectionRTL: return py::str("rtl");
+        default: throw std::runtime_error(std::string("unknown flavor of ygdirection"));
+    }
+}
+
+YGDirection to_yg_direction(std::string str) {
+    if (str == "inherit") { return YGDirection::YGDirectionInherit; }
+    if (str == "ltr") { return YGDirection::YGDirectionLTR; }
+    if (str == "rtl") { return YGDirection::YGDirectionRTL; }
+    throw py::value_error(std::string("ygdirection accepts inherit|ltr|rtl"));
+}
+
+py::str from_yg_display(YGDisplay a) {
+    switch(a) {
+        case YGDisplay::YGDisplayFlex: return py::str("flex");
+        case YGDisplay::YGDisplayNone: return py::str("none");
+        case YGDisplay::YGDisplayContents: return py::str("contents");
+        default: throw std::runtime_error(std::string("unknown flavor of ygdisplay"));
+    }
+}
+
+YGDisplay to_yg_display(std::string str) {
+    if (str == "flex") { return YGDisplay::YGDisplayFlex; }
+    if (str == "none") { return YGDisplay::YGDisplayNone; }
+    if (str == "contents") { return YGDisplay::YGDisplayContents; }
+    throw py::value_error(std::string("ygdisplay accepts flex|none|contents"));
+}
+
+py::str from_yg_overflow(YGOverflow a) {
+    switch(a) {
+        case YGOverflow::YGOverflowVisible: return py::str("visible");
+        case YGOverflow::YGOverflowHidden: return py::str("hidden");
+        case YGOverflow::YGOverflowScroll: return py::str("scroll");
+        default: throw std::runtime_error(std::string("unknown flavor of ygoverflow"));
+    }
+}
+
+YGOverflow to_yg_overflow(std::string str) {
+    if (str == "visible") { return YGOverflow::YGOverflowVisible; }
+    if (str == "hidden") { return YGOverflow::YGOverflowHidden; }
+    if (str == "scroll") { return YGOverflow::YGOverflowScroll; }
+    throw py::value_error(std::string("ygoverflow accepts visible|hidden|scroll"));
+}
+
 PYBIND11_MODULE(sarpasana, m) {
     m.doc() = R"pbdoc(
         sarpasana
@@ -528,41 +628,13 @@ PYBIND11_MODULE(sarpasana, m) {
         Bindings for the yoga layout library
     )pbdoc";
 
-    py::enum_<YGAlign>(m, "Align")
-      .value("Auto", YGAlign::YGAlignAuto)
-      .value("FlexStart", YGAlign::YGAlignFlexStart)
-      .value("Center", YGAlign::YGAlignCenter)
-      .value("FlexEnd", YGAlign::YGAlignFlexEnd)
-      .value("Stretch", YGAlign::YGAlignStretch)
-      .value("Baseline", YGAlign::YGAlignBaseline)
-      .value("SpaceBetween", YGAlign::YGAlignSpaceBetween)
-      .value("SpaceAround", YGAlign::YGAlignSpaceAround)
-      .value("SpaceEvenly", YGAlign::YGAlignSpaceEvenly);
-
-    py::enum_<YGBoxSizing>(m, "BoxSizing")
-      .value("BorderBox", YGBoxSizing::YGBoxSizingBorderBox)
-      .value("ContentBox", YGBoxSizing::YGBoxSizingContentBox);
-
-    py::enum_<YGDimension>(m, "Dimension")
-        .value("Width", YGDimension::YGDimensionWidth)
-        .value("Height", YGDimension::YGDimensionHeight);
-
-    py::enum_<YGDirection>(m, "Direction")
-        .value("Inherit", YGDirection::YGDirectionInherit)
-        .value("LTR", YGDirection::YGDirectionLTR)
-        .value("RTL", YGDirection::YGDirectionRTL);
-
-    py::enum_<YGDisplay>(m, "Display")
-        .value("Flex", YGDisplay::YGDisplayFlex)
-        .value("No", YGDisplay::YGDisplayNone)
-        .value("Contents", YGDisplay::YGDisplayContents);
-
     m.attr("ErrataStretchFlexBasis") = (unsigned long)YGErrataStretchFlexBasis;
     m.attr("ErrataAbsolutePositionWithoutInsetsExludesPadding") = (unsigned long)YGErrataAbsolutePositionWithoutInsetsExcludesPadding;
     m.attr("ErrataAbsolutePositionPercentAgainstInnerSize") = (unsigned long)YGErrataAbsolutePercentAgainstInnerSize;
     m.attr("ErrataAll") = (unsigned long)YGErrataAll;
     m.attr("ErrataClassic") = (unsigned long)YGErrataClassic;
 
+    // TODO: chalk one of these away once in a while.
     py::enum_<YGExperimentalFeature>(m, "ExperimentalFeature")
         .value("WebFlexBasis", YGExperimentalFeature::YGExperimentalFeatureWebFlexBasis);
     
@@ -597,11 +669,6 @@ PYBIND11_MODULE(sarpasana, m) {
         .value("Default", YGNodeType::YGNodeTypeDefault)
         .value("Text", YGNodeType::YGNodeTypeText);
 
-    py::enum_<YGOverflow>(m, "Overflow")
-        .value("Visible", YGOverflow::YGOverflowVisible)
-        .value("Hidden", YGOverflow::YGOverflowHidden)
-        .value("Scroll", YGOverflow::YGOverflowScroll);
-
     py::enum_<YGPositionType>(m, "PositionType")
         .value("Static", YGPositionType::YGPositionTypeStatic)
         .value("Relative", YGPositionType::YGPositionTypeRelative)
@@ -624,7 +691,7 @@ PYBIND11_MODULE(sarpasana, m) {
     py::class_<Node>(m, "Node")
         .def(py::init<Config*>(), "config"_a = static_cast<Config*>(nullptr))
         .def("reset", &Node::Reset)
-        .def("calculate_layout", &Node::CalculateLayout)
+        .def("calculate_layout", [](Node& node, float aw, float ah, std::string od) { YGNodeCalculateLayout(node.ref, aw, ah, to_yg_direction(od)); })
         .def_property("has_new_layout", &Node::GetHasNewLayout, &Node::SetHasNewLayout)
         .def_property_readonly("dirty", &Node::IsDirty)
         .def("mark_dirty", &Node::MarkDirty)
@@ -652,15 +719,16 @@ PYBIND11_MODULE(sarpasana, m) {
         .def_property_readonly("bottom", [](Node& node) { return YGNodeLayoutGetBottom(node.ref); })
         .def_property_readonly("width", [](Node& node) { return YGNodeLayoutGetWidth(node.ref); })
         .def_property_readonly("height", [](Node& node) { return YGNodeLayoutGetHeight(node.ref); })
-        .def_property_readonly("direction", [](Node& node) { return YGNodeLayoutGetDirection(node.ref); })
+        .def_property_readonly("direction", [](Node& node) { return from_yg_direction(YGNodeLayoutGetDirection(node.ref)); })
         .def_property_readonly("had_overflow", [](Node& node) { return YGNodeLayoutGetHadOverflow(node.ref); })
-        .def("get_margin", [](Node& node, YGEdge edge) { return YGNodeLayoutGetMargin(node.ref, edge); })
-        .def("get_border", [](Node& node, YGEdge edge) { return YGNodeLayoutGetBorder(node.ref, edge); })
-        .def("get_padding", [](Node& node, YGEdge edge) { return YGNodeLayoutGetPadding(node.ref, edge); })
+        // TODO: implement
+        //.def("get_margin", [](Node& node, YGEdge edge) { return YGNodeLayoutGetMargin(node.ref, edge); })
+        //.def("get_border", [](Node& node, YGEdge edge) { return YGNodeLayoutGetBorder(node.ref, edge); })
+        //.def("get_padding", [](Node& node, YGEdge edge) { return YGNodeLayoutGetPadding(node.ref, edge); })
         .def("copy_style", [](Node& dst, Node& src) { YGNodeCopyStyle(dst.ref, src.ref); })
         .def_property("style_direction",
-            [](Node &self) { return YGNodeStyleGetDirection(self.ref); },
-            [](Node &self, YGDirection direction) { YGNodeStyleSetDirection(self.ref, direction); })
+            [](Node &self) { return from_yg_direction(YGNodeStyleGetDirection(self.ref)); },
+            [](Node &self, std::string direction) { YGNodeStyleSetDirection(self.ref, to_yg_direction(direction)); })
         .def_property("style_flex_direction",
             [](Node &self) { return YGNodeStyleGetFlexDirection(self.ref); },
             [](Node &self, YGFlexDirection param) { YGNodeStyleSetFlexDirection(self.ref, param); })
@@ -668,14 +736,14 @@ PYBIND11_MODULE(sarpasana, m) {
             [](Node &self) { return YGNodeStyleGetJustifyContent(self.ref); },
             [](Node &self, YGJustify param) { YGNodeStyleSetJustifyContent(self.ref, param); })
         .def_property("style_align_content",
-            [](Node &self) { return YGNodeStyleGetAlignContent(self.ref); },
-            [](Node &self, YGAlign param) { YGNodeStyleSetAlignContent(self.ref, param); })
+            [](Node &self) { return from_yg_align(YGNodeStyleGetAlignContent(self.ref)); },
+            [](Node &self, std::string param) { YGNodeStyleSetAlignContent(self.ref, to_yg_align(param)); })
         .def_property("style_align_items",
-            [](Node &self) { return YGNodeStyleGetAlignItems(self.ref); },
-            [](Node &self, YGAlign param) { YGNodeStyleSetAlignItems(self.ref, param); })
+            [](Node &self) { return from_yg_align(YGNodeStyleGetAlignItems(self.ref)); },
+            [](Node &self, std::string param) { YGNodeStyleSetAlignItems(self.ref, to_yg_align(param)); })
         .def_property("style_align_self",
-            [](Node &self) { return YGNodeStyleGetAlignSelf(self.ref); },
-            [](Node &self, YGAlign param) { YGNodeStyleSetAlignSelf(self.ref, param); })
+            [](Node &self) { return from_yg_align(YGNodeStyleGetAlignSelf(self.ref)); },
+            [](Node &self, std::string param) { YGNodeStyleSetAlignSelf(self.ref, to_yg_align(param)); })
         .def_property("style_position_type",
             [](Node &self) { return YGNodeStyleGetPositionType(self.ref); },
             [](Node &self, YGPositionType param) { YGNodeStyleSetPositionType(self.ref, param); })
@@ -683,11 +751,11 @@ PYBIND11_MODULE(sarpasana, m) {
             [](Node &self) { return YGNodeStyleGetFlexWrap(self.ref); },
             [](Node &self, YGWrap param) { YGNodeStyleSetFlexWrap(self.ref, param); })
         .def_property("style_overflow",
-            [](Node &self) { return YGNodeStyleGetOverflow(self.ref); },
-            [](Node &self, YGOverflow param) { YGNodeStyleSetOverflow(self.ref, param); })
+            [](Node &self) { return from_yg_overflow(YGNodeStyleGetOverflow(self.ref)); },
+            [](Node &self, std::string param) { YGNodeStyleSetOverflow(self.ref, to_yg_overflow(param)); })
         .def_property("style_display",
-            [](Node &self) { return YGNodeStyleGetDisplay(self.ref); },
-            [](Node &self, YGDisplay param) { YGNodeStyleSetDisplay(self.ref, param); })
+            [](Node &self) { return from_yg_display(YGNodeStyleGetDisplay(self.ref)); },
+            [](Node &self, std::string param) { YGNodeStyleSetDisplay(self.ref, to_yg_display(param)); })
         .def_property("style_flex",
             [](Node &self) { return YGNodeStyleGetFlex(self.ref); },
             [](Node &self, float param) { YGNodeStyleSetFlex(self.ref, param); })
@@ -820,8 +888,8 @@ PYBIND11_MODULE(sarpasana, m) {
                 }
             })
         .def_property("style_box_sizing",
-            [](Node &self) { return YGNodeStyleGetBoxSizing(self.ref); },
-            [](Node &self, YGBoxSizing param) { YGNodeStyleSetBoxSizing(self.ref, param); })
+            [](Node &self) { return from_yg_box_sizing(YGNodeStyleGetBoxSizing(self.ref)); },
+            [](Node &self, std::string param) { YGNodeStyleSetBoxSizing(self.ref, to_yg_box_sizing(param)); })
         .def_property("style_aspect_ratio",
             [](Node &self) { return YGNodeStyleGetAspectRatio(self.ref); },
             [](Node &self, float param) { YGNodeStyleSetAspectRatio(self.ref, param); })
